@@ -28,11 +28,17 @@ defmodule WebPushEncryption.Push do
 
   Returns the result of `HTTPoison.post`
   """
-  @spec send_web_push(message :: binary, subscription :: map, auth_token :: binary | nil, ttl :: integer) ::
+  @spec send_web_push(
+          message :: binary,
+          subscription :: map,
+          auth_token :: binary | nil,
+          ttl :: integer
+        ) ::
           {:ok, any} | {:error, atom}
   def send_web_push(message, subscription, auth_token \\ nil, ttl \\ 0)
 
-  def send_web_push(_message, _subscription, _auth_token, ttl) when not is_integer(ttl) or ttl < 0 do
+  def send_web_push(_message, _subscription, _auth_token, ttl)
+      when not is_integer(ttl) or ttl < 0 do
     raise ArgumentError,
           "send_web_push expects a non-negative integer ttl"
   end
@@ -64,6 +70,28 @@ defmodule WebPushEncryption.Push do
   def send_web_push(_message, _subscription, _auth_token, _ttl) do
     raise ArgumentError,
           "send_web_push expects a subscription endpoint with an endpoint parameter"
+  end
+
+  def external_send_web_push(keys, message, subscription, auth_token \\ nil, ttl \\ 0)
+
+  def external_send_web_push(keys, message, %{endpoint: endpoint} = subscription, auth_token, ttl) do
+    payload = WebPushEncryption.Encrypt.encrypt(message, subscription)
+
+    headers =
+      Vapid.get_headers_with_key(keys, make_audience(endpoint), "aesgcm")
+      |> Map.merge(%{
+        "TTL" => to_string(ttl),
+        "Content-Encoding" => "aesgcm",
+        "Encryption" => "salt=#{ub64(payload.salt)}"
+      })
+
+    headers =
+      headers
+      |> Map.put("Crypto-Key", "dh=#{ub64(payload.server_public_key)};" <> headers["Crypto-Key"])
+
+    {endpoint, headers} = make_request_params(endpoint, headers, auth_token)
+    options = [ssl: [{:versions, [:"tlsv1.2"]}]]
+    http_client().post(endpoint, payload.ciphertext, headers, options)
   end
 
   defp make_request_params(endpoint, headers, auth_token) do
