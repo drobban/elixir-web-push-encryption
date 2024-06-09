@@ -1,4 +1,18 @@
 defmodule Mix.Tasks.WebPush.Gen.Keypair do
+  @moduledoc """
+  Generate VAPID supplied config.
+
+  It will output something like this; 
+
+    config :web_push_encryption, :vapid_details,
+      subject: \"mailto:administrator@example.com\",
+      public_key: \"BPFoGQXYu4LgQvn_EXAMPLE_RgXSkYAEXkJO_SUP74cLsduMRd_zHd-CY7ACYQ\" ,
+      private_key: \"CJ4dlX4WIm_EXAMPLE_lZevqDPKwAyxs9k\"
+  """
+  @shortdoc "VAPID generator"
+
+  use Mix.Task
+
   def run(_) do
     {public, private} = :crypto.generate_key(:ecdh, :prime256v1)
 
